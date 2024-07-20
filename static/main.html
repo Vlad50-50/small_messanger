@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bored Box Box</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main>
+        <div class="acc_and_panel">
+            <div id="acc_content" class="account_content">
+                <div class="account_content_elm"><img src="" alt="photo"></div>
+                <div class="account_content_elm" id="myName"></div>
+            </div>
+            <div class="panel">
+                <div id="p_elm_general" class="panel_elm active" onclick="renderPage('general')">General</div>
+                <div id="p_elm_GChat" class="panel_elm" onclick="renderPage('gc')">Global Chat</div>
+                <div id="p_elm_PChats" class="panel_elm" onclick="renderPage('pc')">Private Chats</div>
+                <div id="p_elm_Market" class="panel_elm" onclick="renderPage('market')">Market</div>
+                <div id="p_elm_FAQ" class="panel_elm" onclick="renderPage('faq')">FAQ</div>
+            </div>
+        </div>
+        
+        <div class="footerBox">
+            &copy; BBB Organisation.
+            <a href="">Our prodgects</a>
+            <a href="">Sours code of this web-page</a>
+        </div>
+    </main>
+
+    <div id="contentBox" class="contentBox">
+        
+
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

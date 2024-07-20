@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="background">
+        <div class="shape"></div>
+        <div class="shape"></div>
+    </div>
+   
+    <div class="forms">
+        <div id="targetElement1"></div>
+        <form id="login-form">
+            <h3 id="marker">Login Here</h3>
+            <label for="login">Username</label>
+            <input type="text" placeholder="Email or Phone" id="usernameLog">
+            <label for="password">Password</label>
+            <input type="password" placeholder="Password" id="passwordLog">
+            <button class="log_reg" id="log_btn" type="submit">Log In</button>
+            <div class="reg_or_log" id="reg_or_log">
+                <button class="redirector" id="to_register" type="button">No account?</button>
+            </div>
+        </form>
+        <form id="register-form">
+            <h3 style="margin-top: 250px;">Register Here</h3>
+            <label for="username">Username</label>
+            <input type="text" placeholder="Email or Phone" id="usernameReg">
+            <label for="password">Password</label>
+            <input type="password" placeholder="Password" id="passwordReg">
+            <button class="log_reg" id="reg_btn" type="submit">Register</button>
+            <div class="reg_or_log" id="reg_or_log">
+                <button class="redirector" id="to_login" type="button">Have a account</button>
+            </div>
+        </form>
+        <div id="targetElement"></div>
+    </div>
+    <span id="response"></span>
+    
+    <script src="auth.js"></script>
+</body>
+</html>
