@@ -120,13 +120,10 @@ module.exports = {
         );
         return true;// ПОТОМ УБРАТЬ ЕТО НЕ НАДО НО ПОКА НАДО!!!!
     },
-    userOnline: async (userId) => {
+    userLineStatus: async(type, userId) => {
         await ensureDBInitialized();
-        await db.run(`UPDATE user SET connection_status = 'Online' WHERE id = ?`, [userId]);
-    },
-    userOffline: async (userId) => {
-        await ensureDBInitialized();
-        await db.run(`UPDATE user SET connection_status = 'Offline' WHERE id = ?`, [userId]);
+        if (type) await db.run(`UPDATE user SET connection_status = 'Online' WHERE id = ?`, [userId]);
+        else await db.run(`UPDATE user SET connection_status = 'Offline' WHERE id = ?`, [userId]);
     },
     getAuthToken: async (user) => {
         await ensureDBInitialized();
@@ -156,10 +153,14 @@ module.exports = {
         let buffer = result.lastID
         return {chat_id:buffer};
     },
-    isChatExistByChatID: async (chatId) => { 
+    isUserINChat: async(chatId, userId) => {
         await ensureDBInitialized();
-        let chat = await db.all(`SELECT * FROM private_chat WHERE chat_id = ?`, [chatId]);// Проверка на наличие чата
-        return Boolean(chat.length);
+        const chat = await db.get(`
+            SELECT chat_id FROM private_chat 
+            WHERE chat_id = ? AND (user1_id = ? OR user2_id = ?)
+        `, [chatId, userId, userId]);
+        if (!chat) return false;
+        return true;
     },
     isChatExistByUserIDs: async (user1Id, user2Id) => { 
         await ensureDBInitialized();
@@ -167,13 +168,8 @@ module.exports = {
         const chats = await db.all(`SELECT * FROM private_chat WHERE (user1_id , user2_id) = (? , ?)`, [firstUserId,secondUserId]);
         return chats.length;
     },
-    getPrivateMessage: async (chatId, userId) => { // Получение сообщения
+    getPrivateMessage: async (chatId) => { // Получение сообщения
         await ensureDBInitialized();
-        const chat = await db.get(`
-            SELECT chat_id FROM private_chat 
-            WHERE chat_id = ? AND (user1_id = ? OR user2_id = ?)
-        `, [chatId, userId, userId]);
-        if (!chat) return "User is not a member of this chat."
         return await db.all(`
             SELECT private_message.id AS p_msg_id, user.login AS username, content, timestamp 
             FROM private_message 

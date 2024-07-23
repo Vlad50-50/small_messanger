@@ -4,6 +4,7 @@ const path = require("path");
 const { Server } = require("socket.io");
 const db = require("./database");
 const cookie = require("cookie");
+const database = require("./database");
 
 const chatHtmlFile = fs.readFileSync(path.join(__dirname, "static", "main.html"));
 const styleCssFile = fs.readFileSync(path.join(__dirname, "static", "style.css"));
@@ -170,11 +171,11 @@ io.on("connection", async (socket) => {
     const username = socket.credentials?.login;
     const userId = socket.credentials?.userId;
     console.log("A user " + username + " connected. Id - " + socket.id);
-    await db.userOnline(userId);
+    await db.userLineStatus(1, userId);
+
     //Глобал часть
     socket.on("servise_request", async() => {
         socket.emit("all_messages", await db.getMessages());
-        console.clear();
     });
 
     socket.on("new_message", async (message) => {
@@ -188,63 +189,70 @@ io.on("connection", async (socket) => {
         socket.broadcast.emit("message", obj);
     });
 
-    //Глобал часть
+    //приват часть
     socket.on('new_private_chat', async (data, callback) => {
-        console.log(data);
+        if (typeof data !== 'number' || typeof callback !== 'function') return;
         if (await db.isUserExistByID(data)) {
             console.log(await db.isChatExistByUserIDs(data, userId));
             if (!await db.isChatExistByUserIDs(data, userId)){
-                console.log("Creating...")
                 let newChat = await db.createPrivateChat(userId, data);
                 console.log(newChat);
-                return callback({
-                    status:'Chat was created'
-                });
+                return callback({ status: 200 });
             }
-            else return callback({
-                status:'Chat is exist'
-            });
+            else return callback({ status: 201 });
         }
-        else return callback({
-            status:'User not found'
-        });
+        else return callback({ status: 404 });
     });
 
     socket.on("all_chats", async(callback) => {
+        if (typeof callback !== 'function') return;
         let chats = await db.getAllPrivateChats(userId);
         return callback({chats});
     });
 
-    socket.on("user_details", async(reqID,callback) => {
+    socket.on("user_details", async(reqID, callback) => {
+        if (typeof callback !== 'function' || typeof reqID !== 'number') return;
         let details = await db.getUserDetails(reqID)
         return callback({details});
     });
 
-    socket.on("getPrivateMessages", async(chatId, msg) => {
-        let messages = await db.getPrivateMessage(chatId, userId);
-        console.log(messages , chatId);
-        return msg({messages});
+    socket.on("getPrivateMessages", async(chatId, callback) => {
+        if (typeof callback !== 'function' || chatId === undefined) return;
+        if (await db.isUserINChat(chatId,userId)) {
+            let messages = await db.getPrivateMessage(chatId, userId);
+            return callback({ data: messages })
+        }
+        return callback({ status: 403 });
+    });
+
+    socket.on("new_private_message", async(data) => {
+        if (data.msg != undefined && data.chat_id != undefined) {
+            if (await db.isUserINChat){
+                await db.addPrivateMessage(data.msg, userId ,data.chat_id);
+            }
+        }
     });
 
     socket.on('disconnect', async () => {
-        await db.userOffline(userId)
+        await db.userLineStatus(0, userId);
         console.log("User " + username + " discconected");
     });
 });
 
 
 (async function() {
-    // await db.addUser({login:'14',password:'13'});
-    // await db.addUser({login:'13',password:'13'});
+    // await db.addUser({login:'1',password:'13'});
+    // await db.addUser({login:'2',password:'13'});
     // let data = '2';
     // let userId = 1;
-    // await db.addUser({login:'12',password:'13'});
     // console.log(await db.createPrivateChat(1,2));
     // console.log(await db.createPrivateChat(1,3));
     // console.log(await db.getAllPrivateChats(1));
-    // await db.addPrivateMessage('test text from 14', 1,1);
-    // await db.addPrivateMessage('test t 1', 2,1);
-    // console.log(await db.getPrivateMessage(1,1));
+    // await db.addPrivateMessage('test text from 1', 1,1);
+    // await db.addPrivateMessage('test t 1', 1,3);
+    // console.log("private messages: " + await db.getPrivateMessage(1,2));
+    // let dushe = await db.getPrivateMessage(1,2);
+    // console.log(dushe);
     // console.log(await db.isChatExist(10));
 
     // console.log(data);
@@ -264,15 +272,3 @@ io.on("connection", async (socket) => {
     //     }
     //     else console.log('user not found');
 })();
-// test();
-//то прикольно структура но функция
-// function tes(data,tata){
-//     this.tata = data;
-//     this.data = tata;
-//     this.name = () => {
-//         console.log('hello');
-//     }
-// }
-// let obj1 = new tes('fd',312);
-// console.log(obj1);
-// obj1.name();

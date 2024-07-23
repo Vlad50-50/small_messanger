@@ -1,10 +1,14 @@
 const socket = io({auth: {cookie: document.cookie}});
 const myName = document.cookie.split(".")[1];
-document.getElementById("myName").textContent = myName;
-console.log(myName + " Wellkome");
 const myId = document.cookie.split("=")[1].split(".")[0];
 const pageBox = document.getElementById('contentBox');
 const items = document.querySelectorAll('.panel_elm');
+
+let buffer_activeChat;
+
+document.getElementById("myName").textContent = myName;
+console.log(myName + " Wellkome");
+
 items.forEach(item => {
     item.addEventListener('click', () => {
         items.forEach(i => i.classList.remove('active'));
@@ -25,6 +29,7 @@ function copyID() {
         document.body.removeChild(tempInput);
     });
 }
+
 renderPage("general");
 function renderPage(render) {
     if (render == "general") {
@@ -85,13 +90,13 @@ function renderPage(render) {
         socket.off('all_messages').on('all_messages', msgArray => {
             msgArray.forEach(msg => {
                 console.log(msg);
-                createMsg(msg);
+                createMsg(msg, "chatField");
             });
         });
 
         socket.on("message",(msg) => {
             console.log(msg);
-            createMsg(msg);
+            createMsg(msg, "chatField");
         });
         
         document.getElementById('globalChat-form').addEventListener("submit", event => {
@@ -103,7 +108,7 @@ function renderPage(render) {
                     username: myName,
                     content: input.value,
                     timestamp: Date.now()
-                });
+                },"chatField");
                 input.value = "";
             }
         });
@@ -112,14 +117,14 @@ function renderPage(render) {
              <div class="pChat">
                 <div class="panelPChats" id="panelPChats">
                 </div>
-                <div class="panelPChats-elm" id="newPrivateChat">
+                <div class="panelPChats-elm" id="newPrivateChat" style = "cursor: pointer;">
                     <h3>Create private chat</h3>
                 </div>
-                <div class = "chat_MesPanel">
-                    <div class="chat privateChat" id="chatField"></div>
-                    <div class="messagePanel">
-                        <input type="text" name="" id="messageContainer-global" placeholder="Type message">
-                        <input type="button" value="Enter">
+                <div class="chat_MesPanel" >
+                    <div class="chat privateChat" id="chatField-private"></div>
+                    <div class="messagePanel" id="privateChat-form">
+                        <input type="text" name="" id="messageContainer-private" placeholder="Type message">
+                        <input type="button" id="new_private_msgBTN" value="Enter">
                     </div>
                 </div>    
             </div>
@@ -169,20 +174,33 @@ function renderPage(render) {
                     console.log(interlocutor_login.value);
                     socket.emit("new_private_chat", interlocutor_login.value, (res) => {
                         console.log(res);
-                        if (res.status){
-                            span.innerHTML = res.status;
-                            dialog.remove();
-                            socket.emit("all_chats", (chats) => {
-                                console.log(chats);
-                                createPrivateChats(chats);
-                            })
-                        }
+                        if (res.status != 404){
+                            if (res.status != 201) {
+                                dialog.remove();
+                                socket.emit("all_chats", (chats) => {
+                                    console.log(chats);
+                                    createPrivateChats(chats);
+                                });
+                            }else span.innerHTML = 'Chat is exist';
+                        }else span.innerHTML = 'User not found';
                     });
                 }
                 else span.innerHTML = "Missing data";
             });
-        })
-       
+        });
+        
+        document.getElementById('new_private_msgBTN').addEventListener("click", () => {
+            const input = document.getElementById("messageContainer-private");
+            if (input.value) {
+                socket.emit("new_private_message", {msg:input.value,chat_id:buffer_activeChat});
+                createMsg({
+                    username: myName,
+                    content: input.value,
+                    timestamp: Date.now()
+                },"chatField-private");
+                input.value = "";
+            }
+        });
     } else if (render == "market") {
 
     } else if (render == "faq") {
@@ -190,10 +208,10 @@ function renderPage(render) {
     }
 }
 
-function createMsg(msg) {
+function createMsg(msg, typeofChatField) {
     let item = document.createElement("li");
     item.classList.add("message");
-    document.getElementById("chatField").appendChild(item);
+    document.getElementById(typeofChatField).appendChild(item);
     item.innerHTML = 
     `
         <div class = "name_img">
@@ -203,12 +221,13 @@ function createMsg(msg) {
         <div class = "user_message">${msg.content}</div>
         <div class = "data">${new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
     `;
-    document.getElementById("chatField").scrollTop = document.getElementById("chatField").scrollHeight;
+    document.getElementById(typeofChatField).scrollTop = document.getElementById(typeofChatField).scrollHeight;
 }
 
 function createPrivateChats(data) {
     console.log(data.chats);
     let panel = document.getElementById("panelPChats");
+    let chatElements = [];
     panel.innerHTML = '';
 
     for(let i = 0; i < data.chats.length; i++) {
@@ -227,24 +246,29 @@ function createPrivateChats(data) {
                 <h4>${obj.details.login}</h4>
             `;
             panel.appendChild(chatElement);
-
-            chatElement.addEventListener('click', (event) => {
-                const clickedElement = event.target.closest('.privatesChats');
-                const value = clickedElement.getAttribute('value');
-                socket.emit("getPrivateMessages", value, (msg_obj) => {
-                    let msg = msg_obj.messages;
-                    if(msg.length == 0) document.getElementById("chatField").innerHTML = "No messages";
-                    else {
-                        document.getElementById("chatField").innerHTML = '';
-                        msg.forEach(message => {
-                            console.log(message);
-                            createMsg(message);
-                        });
-                    }
-                });
-            });
+            chatElements.push(chatElement);
         });
     }
+
+    panel.addEventListener('click', (event) => {
+        document.getElementById("chatField-private").innerHTML = '';
+        const clickedElement = event.target.closest('.privatesChats');
+        if (clickedElement) {
+            const value = clickedElement.getAttribute('value');
+            buffer_activeChat = value;
+            socket.emit("getPrivateMessages", value, (msg) => {
+                console.log(msg.data);
+                if (msg.data.length == 0) document.getElementById("chatField-private").innerHTML = "No messages";
+                else {
+                    document.getElementById("chatField-private").innerHTML = '';
+                    msg.data.sort((a,b) => a.p_msg_id - b.p_msg_id);
+                    msg.data.forEach(message => {
+                        createMsg(message,"chatField-private");
+                    });
+                }
+            });
+        }
+    });
 }
 
 socket.on("dissconect");
