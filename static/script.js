@@ -33,48 +33,36 @@ function copyID() {
 renderPage("general");
 function renderPage(render) {
     if (render == "general") {
-        pageBox.innerHTML = `
-            <div class="contentBox_elm">
-                <div class="idBox" id="idBox" onclick="copyID()">Profile ID:${myId}</div>
-                <div class="userData">
-                    <img src="" alt="photo">
-                    <div>
-                        <div class="username" id="username">${myName}</div>
-                        <div class="userStatus">status</div>
-                    </div>
+        socket.emit("my_data", (data) => {
+            console.log(data);
+            pageBox.innerHTML = `
+                <div class="contentBox_elm">
+                    <div class="idBox" id="idBox" onclick="copyID()">Profile ID:${myId}</div>
+                    <div class="userData">
+                        <img src="" alt="photo">
+                        <div>
+                            <div class="username" id="username">${myName}</div>
+                            <div class="userStatus ${data.crown_status}">${data.crown_status}</div>
+                        </div>
 
+                    </div>
+                    <div class="grace">Grace of the imperial crown: ${data.kindness}</div>
+                    <div class="grace">Your money: ${data.money}</div>
+                    <button id="editUserData" class="editUserData">Click to edit your profile data</button>
                 </div>
-                <div class="grace">Grace of the imperial crown: 0</div>
-                <button id="editUserData" class="editUserData">Click to edit your profile data</button>
-            </div>
-            <div class="contentBox_elm rules">
-                <h2>Rules of our organisation</h2>
-                <ul>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                    <li>Очень много интересних правил ☻</li>
-                </ul>
-            </div>
-        `;
-        document.getElementById('editUserData').addEventListener('click', () => {
-            console.log('Hello world');
+                <div class="contentBox_elm rules">
+                    <h2>Rules of our organisation</h2>
+                    <ul>
+                        <li>Dont type bad words please</li>
+                        <li></li>
+                        <li></li>
+                        <li></li>
+                    </ul>
+                </div>
+            `;
+            document.getElementById('editUserData').addEventListener('click', () => {
+                console.log('Hello world');          
+            });
         });
     } else if (render == "gc") {
         pageBox.innerHTML = `
@@ -115,12 +103,15 @@ function renderPage(render) {
     } else if (render == "pc") {
         pageBox.innerHTML = `
              <div class="pChat">
+                <button id="back_to_list" class="back_to_list" onclick="showList()">
+                    &lt;
+                </button>
                 <div class="panelPChats" id="panelPChats">
                 </div>
                 <div class="panelPChats-elm" id="newPrivateChat" style = "cursor: pointer;">
                     <h3>Create private chat</h3>
                 </div>
-                <div class="chat_MesPanel" >
+                <div class="chat_MesPanel" id="chat_MesPanel">
                     <div class="chat privateChat" id="chatField-private"></div>
                     <div class="messagePanel" id="privateChat-form">
                         <input type="text" name="" id="messageContainer-private" placeholder="Type message">
@@ -203,12 +194,11 @@ function renderPage(render) {
         });
     } else if (render == "market") {
 
-    } else if (render == "faq") {
-
     }
 }
 
 function createMsg(msg, typeofChatField) {
+    if (buffer_activeChat == undefined && typeofChatField == "chatField-private") return;
     let item = document.createElement("li");
     item.classList.add("message");
     document.getElementById(typeofChatField).appendChild(item);
@@ -257,21 +247,53 @@ function createPrivateChats(data) {
             const value = clickedElement.getAttribute('value');
             buffer_activeChat = value;
             socket.emit("getPrivateMessages", value, (msg) => {
-                console.log(msg.data);
-                if (msg.data.length == 0) document.getElementById("chatField-private").innerHTML = "No messages";
+                if (window.innerWidth > 320){
+                    if (msg.data.length == 0) document.getElementById("chatField-private").innerHTML = "No messages";
+                    else {
+                        document.getElementById("chatField-private").innerHTML = '';
+                        msg.data.sort((a,b) => a.p_msg_id - b.p_msg_id);
+                        msg.data.forEach(message => {
+                            createMsg(message,"chatField-private");
+                        });
+                    }
+                }
                 else {
-                    document.getElementById("chatField-private").innerHTML = '';
-                    msg.data.sort((a,b) => a.p_msg_id - b.p_msg_id);
-                    msg.data.forEach(message => {
-                        createMsg(message,"chatField-private");
-                    });
+                    if (msg.data.length == 0) {
+                        document.getElementById("panelPChats").classList.toggle("hide");
+                        document.getElementById("newPrivateChat").classList.toggle("hide");
+                        document.getElementById("back_to_list").style.display = 'block';
+                        document.getElementById("chat_MesPanel").style.display = 'flex';
+
+                        document.getElementById("chatField-private").innerHTML = "No messages";
+                    }
+                    else {
+                        document.getElementById("panelPChats").classList.toggle("hide");
+                        document.getElementById("newPrivateChat").classList.toggle("hide");
+                        document.getElementById("back_to_list").style.display = 'block';
+                        document.getElementById("chat_MesPanel").style.display = 'flex';
+
+                        document.getElementById("chatField-private").innerHTML = '';
+                        msg.data.sort((a,b) => a.p_msg_id - b.p_msg_id);
+                        msg.data.forEach(message => {
+                            createMsg(message,"chatField-private");
+                        });
+                    }
                 }
             });
-        }
+        }else buffer_activeChat = undefined;        
     });
 }
 
-socket.on("dissconect");
-window.addEventListener('beforeunload', function(event) {
-    socket.disconnect();
-});
+function pullOut() {
+    let main = document.querySelector('main');
+    main.classList.toggle('pull-out_main');  
+    let pullBtn = document.getElementById('pull-out_btn');
+    pullBtn.classList.toggle("rotation_btn"); 
+}
+
+function showList() {
+    document.getElementById("panelPChats").classList.toggle("hide");
+    document.getElementById("newPrivateChat").classList.toggle("hide");
+    document.getElementById("back_to_list").style.display = 'none';
+    document.getElementById("chat_MesPanel").style.display = 'none';
+}

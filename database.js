@@ -23,6 +23,7 @@ const initDB = async () => {
                     kindness INTEGER DEFAULT 0,
                     crown_status TEXT DEFAULT 'Cityzen',
                     money INTEGER DEFAULT 0,
+                    ads INTEGER DEFAULT 5,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );`
             );
@@ -55,22 +56,16 @@ const initDB = async () => {
                     FOREIGN KEY(user2_id) REFERENCES user(id)
                 );`
             );
-            // await db.run(`
-            //     CREATE TABLE market (
-            //         order_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            //         content TEXT NOT NULL,
-            //         status TEXT,
-            //         author_id INTEGER NOT NULL,
-            //         FOREIGN KEY(author_id) REFERENCES user(id)
-            //     )`
-            // );
-            // await db.run(`
-            //     CREATE TABLE advertisement (
-            //         ad_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            //         content TEXT NOT NULL,
-            //         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            //     );`
-            // );
+            await db.run(`
+                CREATE TABLE market (
+                    announcement_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    content TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    author_id INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(author_id) REFERENCES user(id)
+                )`
+            );
         }
     } catch (error) {
         console.error(error);

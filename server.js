@@ -173,6 +173,13 @@ io.on("connection", async (socket) => {
     console.log("A user " + username + " connected. Id - " + socket.id);
     await db.userLineStatus(1, userId);
 
+    socket.on("my_data", async(callback) => {
+        if (typeof callback === 'function'){
+            let assets_data = await db.getUserDetails(userId);
+            return callback(assets_data);
+        }
+    });
+
     //Глобал часть
     socket.on("servise_request", async() => {
         socket.emit("all_messages", await db.getMessages());
