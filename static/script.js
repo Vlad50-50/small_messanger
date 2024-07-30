@@ -192,13 +192,18 @@ function renderPage(render) {
                 input.value = "";
             }
         });
+
+        socket.on("private_message", (data) => {
+            console.log(data);
+            if (buffer_activeChat == data.chat_id) createMsg(data, "chatField-private");
+        });
     } else if (render == "market") {
 
     }
 }
 
 function createMsg(msg, typeofChatField) {
-    if (buffer_activeChat == undefined && typeofChatField == "chatField-private") return;
+    if (buffer_activeChat == undefined && typeofChatField == undefined) return;
     let item = document.createElement("li");
     item.classList.add("message");
     document.getElementById(typeofChatField).appendChild(item);

@@ -549,6 +549,9 @@ input:invalid{
 }
 
 @media (max-width: 320px) {
+    main {
+        width: 100%;
+    }
     .chat_MesPanel {
         display: none;
     }

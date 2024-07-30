@@ -4,7 +4,6 @@ const path = require("path");
 const { Server } = require("socket.io");
 const db = require("./database");
 const cookie = require("cookie");
-const database = require("./database");
 
 const chatHtmlFile = fs.readFileSync(path.join(__dirname, "static", "main.html"));
 const styleCssFile = fs.readFileSync(path.join(__dirname, "static", "style.css"));
@@ -18,8 +17,6 @@ const server = http.createServer((req, res) => {
             case "/style.css": return res.end(styleCssFile);
             case "/loginreg": return res.end(loginHtmlFile);
             case "/auth.js": return res.end(authJsFile);
-            case "/api/private_message": return handlePrivateMessage(req, res);
-            case "/api/create_private_chat": return createPrivateChat(req, res);
             default: return guarded(req, res);
         }
     }
@@ -54,46 +51,6 @@ async function registerUser(req, res) {
             await db.addUser(user);
             return res.end(JSON.stringify({
                 res: "Registration is successful"
-            }));
-        } catch (error) {
-            return res.end(JSON.stringify({
-                error: error.toString()
-            }));
-        }
-    });
-}
-
-async function handlePrivateMessage(req, res) {
-    let data = "";
-    req.on("data", (chunk) => {
-        data += chunk;
-    });
-    req.on("end", async () => {
-        try {
-            const { senderId, receiverId, content } = JSON.parse(data);
-            await db.addPrivateMessage(content, senderId, receiverId);
-            return res.end(JSON.stringify({
-                res: "Message sent"
-            }));
-        } catch (error) {
-            return res.end(JSON.stringify({
-                error: error.toString()
-            }));
-        }
-    });
-}
-
-async function createPrivateChat(req, res) {
-    let data = "";
-    req.on("data", (chunk) => {
-        data += chunk;
-    });
-    req.on("end", async () => {
-        try {
-            const { user1Id, user2Id } = JSON.parse(data);
-            await db.createPrivateChat(user1Id, user2Id);
-            return res.end(JSON.stringify({
-                res: "Private chat created"
             }));
         } catch (error) {
             return res.end(JSON.stringify({
@@ -167,9 +124,13 @@ function guarded(req, res) {
     }
 }
 
+let usersSocketIDs = {};
+
 io.on("connection", async (socket) => {
     const username = socket.credentials?.login;
     const userId = socket.credentials?.userId;
+    usersSocketIDs[userId] = socket.id;
+    socket.usersSocketIDs = userId;
     console.log("A user " + username + " connected. Id - " + socket.id);
     await db.userLineStatus(1, userId);
 
@@ -197,12 +158,12 @@ io.on("connection", async (socket) => {
     });
 
     //приват часть
-    socket.on('new_private_chat', async (data, callback) => {
-        if (typeof data !== 'number' || typeof callback !== 'function') return;
-        if (await db.isUserExistByID(data)) {
-            console.log(await db.isChatExistByUserIDs(data, userId));
-            if (!await db.isChatExistByUserIDs(data, userId)){
-                let newChat = await db.createPrivateChat(userId, data);
+    socket.on('new_private_chat', async (userID, callback) => {
+        if (typeof userID !== 'number' || typeof callback !== 'function') return;
+        if (await db.isUserExistByID(userID)) {
+            console.log(await db.isChatExistByUserIDs(userID, userId));
+            if (!await db.isChatExistByUserIDs(userID, userId)){
+                let newChat = await db.createPrivateChat(userId, userID);
                 console.log(newChat);
                 return callback({ status: 200 });
             }
@@ -233,49 +194,29 @@ io.on("connection", async (socket) => {
     });
 
     socket.on("new_private_message", async(data) => {
-        if (data.msg != undefined && data.chat_id != undefined) {
-            if (await db.isUserINChat){
-                await db.addPrivateMessage(data.msg, userId ,data.chat_id);
-            }
+        if (data.msg !== undefined && typeof data.chat_id !== 'number') {
+            if (!await db.isChatExistByChatId(data.chat_id)) return;
+            if (!await db.isUserINChat(data.chat_id, userId)) return;
+            await db.addPrivateMessage(data.msg, userId, data.chat_id);
+            let chatDetails = await db.chatDetails(data.chat_id);
+            let secondUserId;
+            let timestamp = new Date().toISOString();
+            if (userId == chatDetails[0].user1_id) secondUserId = chatDetails[0].user2_id;
+            else secondUserId = chatDetails[0].user1_id;
+            if (await db.getUserConnectionStatus(secondUserId) == 'Ofline') return;
+
+            io.to(usersSocketIDs[secondUserId]).emit('private_message', {
+                login: username,
+                content: data.msg,
+                chat_id: data.chat_id,
+                timestamp: timestamp
+            });
         }
     });
 
     socket.on('disconnect', async () => {
         await db.userLineStatus(0, userId);
-        console.log("User " + username + " discconected");
+        console.log(username + " discconected");
+        delete usersSocketIDs[userId];
     });
 });
-
-
-(async function() {
-    // await db.addUser({login:'1',password:'13'});
-    // await db.addUser({login:'2',password:'13'});
-    // let data = '2';
-    // let userId = 1;
-    // console.log(await db.createPrivateChat(1,2));
-    // console.log(await db.createPrivateChat(1,3));
-    // console.log(await db.getAllPrivateChats(1));
-    // await db.addPrivateMessage('test text from 1', 1,1);
-    // await db.addPrivateMessage('test t 1', 1,3);
-    // console.log("private messages: " + await db.getPrivateMessage(1,2));
-    // let dushe = await db.getPrivateMessage(1,2);
-    // console.log(dushe);
-    // console.log(await db.isChatExist(10));
-
-    // console.log(data);
-    //     if (await db.isUserExistByID(data)) {
-    //         console.log(await db.isChatExistByUserIDs(data, userId));
-    //         if (!await db.isChatExistByUserIDs(data, userId)){
-    //             console.log("Creating...")
-    //             let newChat = await db.createPrivateChat(userId, data);
-    //             console.log(newChat);
-    //             console.log('+');
-    //             console.log(await db.getAllPrivateChats(1));
-    //         }
-    //         else{
-    //             console.log('Chat is exist');
-    //             console.log(await db.getAllPrivateChats(1));
-    //         }
-    //     }
-    //     else console.log('user not found');
-})();

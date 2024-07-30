@@ -163,6 +163,16 @@ module.exports = {
         const chats = await db.all(`SELECT * FROM private_chat WHERE (user1_id , user2_id) = (? , ?)`, [firstUserId,secondUserId]);
         return chats.length;
     },
+    isChatExistByChatId: async (chatId) => {
+        await ensureDBInitialized();
+        const chat = await db.all(`SELECT * FROM private_chat WHERE (chat_id) = ?`, [chatId]);
+        return chat.length;
+    },
+    chatDetails:async (chatId) => {
+        await ensureDBInitialized();
+        const chat = await db.all(`SELECT * FROM private_chat WHERE (chat_id) = ?`, [chatId]);
+        return chat;
+    },
     getPrivateMessage: async (chatId) => { // Получение сообщения
         await ensureDBInitialized();
         return await db.all(`
@@ -196,6 +206,12 @@ module.exports = {
         await ensureDBInitialized();
         return await db.get(`
             SELECT login, kindness, crown_status, money, connection_status FROM user WHERE id = ?
+        `, [userId]);
+    },
+    getUserConnectionStatus: async(userId) => {
+        await ensureDBInitialized();
+        return await db.get(`
+            SELECT connection_status FROM user WHERE id = ?
         `, [userId]);
     },
     setKindness: async (userId, kindness) => {
