@@ -129,16 +129,40 @@ let usersSocketIDs = {};
 io.on("connection", async (socket) => {
     const username = socket.credentials?.login;
     const userId = socket.credentials?.userId;
+    console.log(userId);
+    
     usersSocketIDs[userId] = socket.id;
     socket.usersSocketIDs = userId;
     console.log("A user " + username + " connected. Id - " + socket.id);
     await db.userLineStatus(1, userId);
-
-    socket.on("my_data", async(callback) => {
+    console.log(usersSocketIDs);
+    
+    socket.on("my_data", async (callback) => {
         if (typeof callback === 'function'){
             let assets_data = await db.getUserDetails(userId);
             return callback(assets_data);
         }
+    });
+    //редактирование пользовательских даних
+    socket.on("change_pass", async (data, callback) => {
+        if (typeof data !== 'object' || typeof callback !== 'function') return;
+        if (await db.isCorrectPass(userId, data.last_pass)) {
+            await db.updateUserPassword(userId,data.new_pass);
+            callback({ type: 'Succes' });
+        }
+        else callback({ type: 400, err: 'Incorrect password'});
+    });
+    
+    socket.on("change_login", async(data, callback) => {
+        if (typeof data !== 'object' || typeof callback !== 'function') return;
+        console.log(data.new_login);
+        
+        if (!await db.isUserExist(data.new_login)){
+            console.log(data.new_login);
+            await db.updateUserLogin(userId, data.new_login);
+            callback({ status:200 });
+        }
+        callback({ status: 'User exist' });
     });
 
     //Глобал часть
@@ -194,11 +218,14 @@ io.on("connection", async (socket) => {
     });
 
     socket.on("new_private_message", async(data) => {
-        if (data.msg !== undefined && typeof data.chat_id !== 'number') {
+        console.log(data);
+        if (typeof data.msg == 'string' && typeof data.chat_id == 'number') {
             if (!await db.isChatExistByChatId(data.chat_id)) return;
             if (!await db.isUserINChat(data.chat_id, userId)) return;
+            
             await db.addPrivateMessage(data.msg, userId, data.chat_id);
             let chatDetails = await db.chatDetails(data.chat_id);
+            
             let secondUserId;
             let timestamp = new Date().toISOString();
             if (userId == chatDetails[0].user1_id) secondUserId = chatDetails[0].user2_id;
@@ -220,3 +247,8 @@ io.on("connection", async (socket) => {
         delete usersSocketIDs[userId];
     });
 });
+
+// (async () => {
+//     console.log(await db.allUsers());
+    
+// })();

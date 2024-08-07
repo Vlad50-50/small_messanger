@@ -1,10 +1,15 @@
-const socket = io({auth: {cookie: document.cookie}});
+const socket = io({ auth: { cookie: document.cookie } });
 const myName = document.cookie.split(".")[1];
 const myId = document.cookie.split("=")[1].split(".")[0];
 const pageBox = document.getElementById('contentBox');
 const items = document.querySelectorAll('.panel_elm');
 
 let buffer_activeChat;
+
+document.addEventListener("visibilitychange", function () {
+    if (document.hidden) document.title = 'Come back 😫';
+    else document.title = 'Hello o o o 😁';
+});
 
 document.getElementById("myName").textContent = myName;
 console.log(myName + " Wellkome");
@@ -39,10 +44,9 @@ function renderPage(render) {
                 <div class="contentBox_elm">
                     <div class="idBox" id="idBox" onclick="copyID()">Profile ID:${myId}</div>
                     <div class="userData">
-                        <img src="" alt="photo">
                         <div>
                             <div class="username" id="username">${myName}</div>
-                            <div class="userStatus ${data.crown_status}">${data.crown_status}</div>
+                            <div class="userStatus">Your status: ${data.crown_status}</div>
                         </div>
 
                     </div>
@@ -50,18 +54,78 @@ function renderPage(render) {
                     <div class="grace">Your money: ${data.money}</div>
                     <button id="editUserData" class="editUserData">Click to edit your profile data</button>
                 </div>
-                <div class="contentBox_elm rules">
-                    <h2>Rules of our organisation</h2>
-                    <ul>
-                        <li>Dont type bad words please</li>
-                        <li></li>
-                        <li></li>
-                        <li></li>
-                    </ul>
-                </div>
+                
             `;
             document.getElementById('editUserData').addEventListener('click', () => {
-                console.log('Hello world');          
+                let user_panel = document.createElement("div");
+                user_panel.classList.add("user_panel");
+                user_panel.innerHTML = `
+                    <input type="button" value="Clouse" id="clouse">
+                    <section>
+                        <p>Change Password</p>
+                        <input type="password" id="lastPass" placeholder="Last password">
+                        <input type="password" id="newPass" placeholder="New password">
+                        <input type="button" id="changePassword" value="Change">
+                        <span id="err_box1">
+                    </section>
+                    <section>
+                        <p>Change Username</p>
+                        <input type="text" id="new_login" placeholder="New Username">
+                        <input type="button" id="changeLogin" value="Change">
+                        <input type="button" id="logout" value="Log out">
+                        <span id="err_box2">
+                    </section>
+                `;
+                if (!document.getElementById("contentBox").querySelector('.user_panel')) {
+                    document.getElementById("contentBox").appendChild(user_panel);
+                }
+                const password_err_box = document.getElementById("err_box1");
+                const login_err_box = document.getElementById("err_box2");
+                const clouse = document.getElementById('clouse');
+
+                clouse.addEventListener("click", () => user_panel.remove());
+
+                document.getElementById("changePassword").addEventListener('click',() => {
+                    let lastPass = document.getElementById("lastPass");
+                    let newPass = document.getElementById("newPass");
+                    if (lastPass.value && newPass.value){
+                        console.log("send");
+                        let passwords = {
+                            'last_pass': lastPass.value,
+                            'new_pass': newPass.value
+                        };
+                        socket.emit("change_pass", passwords, (output) => {
+                            console.log(output);
+                            if (output.type == 400) {
+                                password_err_box.innerHTML = output.err;
+                            }
+                            else {
+                                document.cookie = "token=;expires=0";
+                                location.assign("/logreg");
+                            }
+                        });
+                    }
+                });
+
+                document.getElementById("changeLogin").addEventListener('click',() => {
+                    let new_login = document.getElementById("new_login");
+                    if (new_login.value) {
+                        socket.emit("change_login", {new_login:new_login.value}, (output) => {
+                            if (output.status == 200) {
+                                document.cookie = "token=;expires=0";
+                                location.assign("/logreg");
+                            }
+                            else {
+                                login_err_box.innerHTML = output.status;
+                            }
+                        });
+                    }
+                });
+
+                document.getElementById("logout").addEventListener('click', () => {
+                    document.cookie = "token=;expires=0";
+                    location.assign("/logreg");
+                });
             });
         });
     } else if (render == "gc") {
@@ -82,11 +146,11 @@ function renderPage(render) {
             });
         });
 
-        socket.on("message",(msg) => {
+        socket.on("message", (msg) => {
             console.log(msg);
             createMsg(msg, "chatField");
         });
-        
+
         document.getElementById('globalChat-form').addEventListener("submit", event => {
             const input = document.getElementById("messageContainer-global");
             event.preventDefault();
@@ -96,7 +160,7 @@ function renderPage(render) {
                     username: myName,
                     content: input.value,
                     timestamp: Date.now()
-                },"chatField");
+                }, "chatField");
                 input.value = "";
             }
         });
@@ -108,7 +172,7 @@ function renderPage(render) {
                 </button>
                 <div class="panelPChats" id="panelPChats">
                 </div>
-                <div class="panelPChats-elm" id="newPrivateChat" style = "cursor: pointer;">
+                <div class="panelPChats-elm" id="newPrivateChat" style = "cursor: pointer; margin-bottom: 20px;">
                     <h3>Create private chat</h3>
                 </div>
                 <div class="chat_MesPanel" id="chat_MesPanel">
@@ -124,7 +188,7 @@ function renderPage(render) {
             console.log(chats);
             createPrivateChats(chats);
         })
-       
+
         const newChat = document.getElementById('newPrivateChat').addEventListener('click', () => {
             let dialog = document.createElement("div");
             dialog.classList.add("dialog");
@@ -155,40 +219,40 @@ function renderPage(render) {
             const chat_form = document.getElementById("new_chat");
             const span = document.getElementById("err");
 
-            go_back.addEventListener("click",() => dialog.remove());
+            go_back.addEventListener("click", () => dialog.remove());
             chat_form?.addEventListener("submit", (event) => {
                 event.preventDefault();
                 span.innerHTML = null;
 
                 let interlocutor_login = document.getElementById("id_for_analise");
-                if(interlocutor_login.value){
+                if (interlocutor_login.value) {
                     console.log(interlocutor_login.value);
-                    socket.emit("new_private_chat", interlocutor_login.value, (res) => {
+                    socket.emit("new_private_chat", Number(interlocutor_login.value), (res) => {
                         console.log(res);
-                        if (res.status != 404){
+                        if (res.status != 404) {
                             if (res.status != 201) {
                                 dialog.remove();
                                 socket.emit("all_chats", (chats) => {
                                     console.log(chats);
                                     createPrivateChats(chats);
                                 });
-                            }else span.innerHTML = 'Chat is exist';
-                        }else span.innerHTML = 'User not found';
+                            } else span.innerHTML = 'Chat is exist';
+                        } else span.innerHTML = 'User not found';
                     });
                 }
                 else span.innerHTML = "Missing data";
             });
         });
-        
+
         document.getElementById('new_private_msgBTN').addEventListener("click", () => {
             const input = document.getElementById("messageContainer-private");
             if (input.value) {
-                socket.emit("new_private_message", {msg:input.value,chat_id:buffer_activeChat});
+                socket.emit("new_private_message", { msg: input.value, chat_id: Number(buffer_activeChat) });
                 createMsg({
                     username: myName,
                     content: input.value,
                     timestamp: Date.now()
-                },"chatField-private");
+                }, "chatField-private");
                 input.value = "";
             }
         });
@@ -207,10 +271,9 @@ function createMsg(msg, typeofChatField) {
     let item = document.createElement("li");
     item.classList.add("message");
     document.getElementById(typeofChatField).appendChild(item);
-    item.innerHTML = 
-    `
+    item.innerHTML =
+        `
         <div class = "name_img">
-            <img src = "" alt = "p">
             <div class = "user_name">${msg.login || msg.username}</div>
         </div>
         <div class = "user_message">${msg.content}</div>
@@ -225,7 +288,7 @@ function createPrivateChats(data) {
     let chatElements = [];
     panel.innerHTML = '';
 
-    for(let i = 0; i < data.chats.length; i++) {
+    for (let i = 0; i < data.chats.length; i++) {
         let reqID;
         if (data.chats[i].user1_id != myId) reqID = data.chats[i].user1_id;
         else if (data.chats[i].user2_id != myId) reqID = data.chats[i].user2_id;
@@ -237,7 +300,6 @@ function createPrivateChats(data) {
             chatElement.className = 'panelPChats-elm buttons privateChats-panel-elements privatesChats';
             chatElement.setAttribute('value', data.chats[i].chat_id);
             chatElement.innerHTML = `
-                <img src="" alt="ph">
                 <h4>${obj.details.login}</h4>
             `;
             panel.appendChild(chatElement);
@@ -252,13 +314,13 @@ function createPrivateChats(data) {
             const value = clickedElement.getAttribute('value');
             buffer_activeChat = value;
             socket.emit("getPrivateMessages", value, (msg) => {
-                if (window.innerWidth > 320){
+                if (window.innerWidth > 320) {
                     if (msg.data.length == 0) document.getElementById("chatField-private").innerHTML = "No messages";
                     else {
                         document.getElementById("chatField-private").innerHTML = '';
-                        msg.data.sort((a,b) => a.p_msg_id - b.p_msg_id);
+                        msg.data.sort((a, b) => a.p_msg_id - b.p_msg_id);
                         msg.data.forEach(message => {
-                            createMsg(message,"chatField-private");
+                            createMsg(message, "chatField-private");
                         });
                     }
                 }
@@ -278,22 +340,22 @@ function createPrivateChats(data) {
                         document.getElementById("chat_MesPanel").style.display = 'flex';
 
                         document.getElementById("chatField-private").innerHTML = '';
-                        msg.data.sort((a,b) => a.p_msg_id - b.p_msg_id);
+                        msg.data.sort((a, b) => a.p_msg_id - b.p_msg_id);
                         msg.data.forEach(message => {
-                            createMsg(message,"chatField-private");
+                            createMsg(message, "chatField-private");
                         });
                     }
                 }
             });
-        }else buffer_activeChat = undefined;        
+        } else buffer_activeChat = undefined;
     });
 }
 
 function pullOut() {
     let main = document.querySelector('main');
-    main.classList.toggle('pull-out_main');  
+    main.classList.toggle('pull-out_main');
     let pullBtn = document.getElementById('pull-out_btn');
-    pullBtn.classList.toggle("rotation_btn"); 
+    pullBtn.classList.toggle("rotation_btn");
 }
 
 function showList() {

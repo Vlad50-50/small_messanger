@@ -20,10 +20,9 @@ const initDB = async () => {
                     password TEXT NOT NULL,
                     salt TEXT,
                     connection_status TEXT,
-                    kindness INTEGER DEFAULT 0,
+                    kindness INTEGER DEFAULT 5,
                     crown_status TEXT DEFAULT 'Cityzen',
-                    money INTEGER DEFAULT 0,
-                    ads INTEGER DEFAULT 5,
+                    money INTEGER DEFAULT 100,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );`
             );
@@ -72,7 +71,7 @@ const initDB = async () => {
     }
 };
 
-const ensureDBInitialized = async () => {if (!db) await initDB()};
+const ensureDBInitialized = async () => { if (!db) await initDB() };
 
 module.exports = {
     //глобал чат
@@ -87,8 +86,6 @@ module.exports = {
         await ensureDBInitialized();
         try {
             const timestamp = new Date().toISOString();
-            const user = await db.get(`SELECT login FROM user WHERE id = ?`, [userid]);
-            console.log(`Message from ${user.login} at ${timestamp}: ${msg}`);
             await db.run(`INSERT INTO message (content, author_id, timestamp) VALUES (?, ?, ?)`, [msg, userid, timestamp]);
         } catch (error) {
             console.log(error);
@@ -110,12 +107,36 @@ module.exports = {
         let salt = crypto.randomBytes(16).toString("hex");
         let passCipher = crypto.pbkdf2Sync(user.password, salt, 1000, 100, 'sha512').toString("hex");
         await db.run(
-            `INSERT INTO user (login, password, salt, kindness, crown_status, money) VALUES (?, ?, ?, ?, ?, ?)`,
-            [user.login, passCipher, salt , 10, 'Citizen', 100]
+            `INSERT INTO user (login, password, salt) VALUES (?, ?, ?)`,
+            [user.login, passCipher, salt]
         );
         return true;// ПОТОМ УБРАТЬ ЕТО НЕ НАДО НО ПОКА НАДО!!!!
     },
-    userLineStatus: async(type, userId) => {
+    isCorrectPass: async (userId, lastPass) => {
+        await ensureDBInitialized();
+        let person = await db.all(`SELECT * FROM user WHERE user.id = ?`, [userId]);
+        if (!person.length) throw "User not found";
+
+        const { password, salt } = person[0];
+        const hash = crypto.pbkdf2Sync(lastPass, salt, 1000, 100, 'sha512').toString("hex");
+        if (hash != password) return 0;
+        else return 1;
+    },
+    updateUserPassword: async (userId, newPass) => {
+        await ensureDBInitialized();
+        let new_salt = crypto.randomBytes(16).toString("hex");
+        let passCipher = crypto.pbkdf2Sync(newPass, new_salt, 1000, 100, 'sha512').toString("hex");
+        await db.run(
+            `UPDATE user SET password = ?, salt = ? WHERE user.id = ?;`, [passCipher, new_salt, userId]
+        );
+    },
+    updateUserLogin: async (userId, newLogin) => {
+        await ensureDBInitialized();
+        await db.run(
+            `UPDATE user SET login = ? WHERE user.id = ?;`, [newLogin, userId]
+        );
+    },
+    userLineStatus: async (type, userId) => {
         await ensureDBInitialized();
         if (type) await db.run(`UPDATE user SET connection_status = 'Online' WHERE id = ?`, [userId]);
         else await db.run(`UPDATE user SET connection_status = 'Offline' WHERE id = ?`, [userId]);
@@ -138,17 +159,17 @@ module.exports = {
     createPrivateChat: async (user1Id, user2Id) => {  // Создание проватного чата
         await ensureDBInitialized();
         const [firstUserId, secondUserId] = user1Id < user2Id ? [user1Id, user2Id] : [user2Id, user1Id];
-        const chats = await db.all(`SELECT * FROM private_chat WHERE (user1_id , user2_id) = (? , ?)`, [firstUserId,secondUserId]);
-        if (chats.length) return {error: "Chat allready exists"};
+        const chats = await db.all(`SELECT * FROM private_chat WHERE (user1_id , user2_id) = (? , ?)`, [firstUserId, secondUserId]);
+        if (chats.length) return { error: "Chat allready exists" };
 
         const timestamp = new Date().toISOString();
         const result = await db.run(`
             INSERT INTO private_chat (user1_id, user2_id, created_at) VALUES (?, ?, ?)
         `, [firstUserId, secondUserId, timestamp]);
         let buffer = result.lastID
-        return {chat_id:buffer};
+        return { chat_id: buffer };
     },
-    isUserINChat: async(chatId, userId) => {
+    isUserINChat: async (chatId, userId) => {
         await ensureDBInitialized();
         const chat = await db.get(`
             SELECT chat_id FROM private_chat 
@@ -157,10 +178,10 @@ module.exports = {
         if (!chat) return false;
         return true;
     },
-    isChatExistByUserIDs: async (user1Id, user2Id) => { 
+    isChatExistByUserIDs: async (user1Id, user2Id) => {
         await ensureDBInitialized();
         const [firstUserId, secondUserId] = user1Id < user2Id ? [user1Id, user2Id] : [user2Id, user1Id];
-        const chats = await db.all(`SELECT * FROM private_chat WHERE (user1_id , user2_id) = (? , ?)`, [firstUserId,secondUserId]);
+        const chats = await db.all(`SELECT * FROM private_chat WHERE (user1_id , user2_id) = (? , ?)`, [firstUserId, secondUserId]);
         return chats.length;
     },
     isChatExistByChatId: async (chatId) => {
@@ -168,7 +189,7 @@ module.exports = {
         const chat = await db.all(`SELECT * FROM private_chat WHERE (chat_id) = ?`, [chatId]);
         return chat.length;
     },
-    chatDetails:async (chatId) => {
+    chatDetails: async (chatId) => {
         await ensureDBInitialized();
         const chat = await db.all(`SELECT * FROM private_chat WHERE (chat_id) = ?`, [chatId]);
         return chat;
@@ -178,7 +199,7 @@ module.exports = {
         return await db.all(`
             SELECT private_message.id AS p_msg_id, user.login AS username, content, timestamp 
             FROM private_message 
-            JOIN user ON private_message.author_id = user.login
+            JOIN user ON private_message.author_id = user.id
             WHERE private_message.chat_id = ?
         `, [chatId]);
     },
@@ -187,11 +208,11 @@ module.exports = {
         const timestamp = new Date().toISOString();
         await db.run(`INSERT INTO private_message (content, author_id, chat_id, timestamp) VALUES (?, ?, ?, ?)`, [msg, author_id, chatId, timestamp]);
     },
-    deletePrivateMessage: async(chat_id,private_msg_id) => {// Уничтожение сообщения
+    deletePrivateMessage: async (chat_id, private_msg_id) => {// Уничтожение сообщения
         await ensureDBInitialized();
         await db.run(`
             DELETE FROM private_message WHERE chat_id = ? AND private_message.id = ?
-        `,[chat_id, private_msg_id])
+        `, [chat_id, private_msg_id])
     },
     getAllPrivateChats: async (userId) => {// Получение всех приватних чатов 
         await ensureDBInitialized();
@@ -208,7 +229,7 @@ module.exports = {
             SELECT login, kindness, crown_status, money, connection_status FROM user WHERE id = ?
         `, [userId]);
     },
-    getUserConnectionStatus: async(userId) => {
+    getUserConnectionStatus: async (userId) => {
         await ensureDBInitialized();
         return await db.get(`
             SELECT connection_status FROM user WHERE id = ?
@@ -237,5 +258,13 @@ module.exports = {
         } catch (error) {
             console.log(error);
         }
+    },
+
+    //инние функции
+    allUsers: async () => {
+        await ensureDBInitialized();
+        return await db.all(`
+            SELECT * FROM user    
+        `);
     }
 };
